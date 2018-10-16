@@ -1,0 +1,197 @@
+
+stages:
+  - initial_report
+  - quick_checks
+  - midway_report
+  - longer_jobs
+  - final_report
+
+
+variables:
+  GITHUB_REPO_API_URL: "https://api.github.com/repos/ipbus-bot/ipbus-firmware"
+  IPBUS_DOCKER_REGISTRY: "gitlab-registry.cern.ch/ipbus/ipbus-docker"
+
+
+
+.job_template: &jobTemplate_github_commit_status
+  image: cern/cc7-base:20170113
+  tags:
+    - docker
+  only:
+    - branches
+    - web
+  dependencies: []
+
+
+github_commit_status:start:
+  <<: *jobTemplate_github_commit_status
+  stage: initial_report
+  when: always
+  script:
+    - "curl -H \"Authorization: token ${GITHUB_API_TOKEN}\" --data '{\"state\" : \"pending\", \"target_url\" : \"'\"${CI_PROJECT_URL}\"'/pipelines/'\"${CI_PIPELINE_ID}\"'\", \"description\" : \"CI pipeline has started\", \"context\" : \"gitlab-ci-quick\"}' ${GITHUB_REPO_API_URL}/statuses/${CI_COMMIT_SHA}"
+    - "if [[ $CI_COMMIT_REF_NAME =~ ^pull-requests/[0-9]+$ ]]; then curl -H \"Authorization: token ${GITHUB_API_TOKEN}\" --data '{\"state\" : \"pending\", \"target_url\" : \"'\"${CI_PROJECT_URL}\"'/pipelines/'\"${CI_PIPELINE_ID}\"'\", \"description\" : \"CI pipeline has started\", \"context\" : \"gitlab-ci\"}' ${GITHUB_REPO_API_URL}/statuses/${CI_COMMIT_SHA} ; fi"
+
+github_commit_status:midway:success:
+  <<: *jobTemplate_github_commit_status
+  stage: midway_report
+  when: on_success
+  script:
+    - "curl -H \"Authorization: token ${GITHUB_API_TOKEN}\" --data '{\"state\" : \"success\", \"target_url\" : \"'\"${CI_PROJECT_URL}\"'/pipelines/'\"${CI_PIPELINE_ID}\"'\", \"description\" : \"CI quick jobs completed successfully!\", \"context\" : \"gitlab-ci-quick\"}' ${GITHUB_REPO_API_URL}/statuses/${CI_COMMIT_SHA}"
+
+github_commit_status:end:failure:
+  <<: *jobTemplate_github_commit_status
+  stage: final_report
+  when: on_failure
+  script:
+    - "curl -H \"Authorization: token ${GITHUB_API_TOKEN}\" --data '{\"state\" : \"failure\", \"target_url\" : \"'\"${CI_PROJECT_URL}\"'/pipelines/'\"${CI_PIPELINE_ID}\"'\", \"description\" : \"Jobs have failed in CI pipeline\", \"context\" : \"gitlab-ci\"}' ${GITHUB_REPO_API_URL}/statuses/${CI_COMMIT_SHA}"
+
+github_commit_status:end:success:
+  <<: *jobTemplate_github_commit_status
+  stage: final_report
+  only:
+    - /^pull-requests.*$/
+  when: on_success
+  script:
+    - "curl -H \"Authorization: token ${GITHUB_API_TOKEN}\" --data '{\"state\" : \"success\", \"target_url\" : \"'\"${CI_PROJECT_URL}\"'/pipelines/'\"${CI_PIPELINE_ID}\"'\", \"description\" : \"CI pipeline completed successfully!\", \"context\" : \"gitlab-ci\"}' ${GITHUB_REPO_API_URL}/statuses/${CI_COMMIT_SHA}"
+
+
+
+.job_template: &jobTemplate_base
+  image: ${IPBUS_DOCKER_REGISTRY}/ipbus-fw-dev-cc7:master__ipbb0.3.5
+  before_script:
+    - source /software/ipbb-0.3.5/env.sh
+    - cd /tmp
+    - ipbb init fwArea
+    - cd fwArea
+    - cp -r ${CI_PROJECT_DIR} src/ipbus-firmware
+    - source /software/Xilinx/Vivado/${VIVADO_VERSION}/settings64.sh
+
+.job_template: &jobTemplate_vivado_quick_check
+  <<: *jobTemplate_base
+  tags:
+    - docker
+    - xilinx-tools
+  stage: quick_checks
+  script:
+    - /tmp/fwArea/src/ipbus-firmware/tests/ci/test-vivado-syntax.sh ${PROJ}
+
+.job_template: &jobTemplate_vivado_build
+  <<: *jobTemplate_base
+  tags:
+    - docker
+    - xilinx-tools
+  stage: longer_jobs
+  only:
+    - /^pull-requests.[0-9]+$/
+  script:
+    - /tmp/fwArea/src/ipbus-firmware/tests/ci/test_build.sh ${PROJ}
+
+
+
+quick_check:enclustra_ax3_pm3_a35:
+  <<: *jobTemplate_vivado_quick_check
+  variables:
+    VIVADO_VERSION: "2017.4"
+    PROJ: enclustra_ax3_pm3_a35
+
+quick_check:enclustra_ax3_pm3_a50:
+  <<: *jobTemplate_vivado_quick_check
+  variables:
+    VIVADO_VERSION: "2017.4"
+    PROJ: enclustra_ax3_pm3_a50
+
+quick_check:kc705_basex:
+  <<: *jobTemplate_vivado_quick_check
+  variables:
+    VIVADO_VERSION: "2017.4"
+    PROJ: kc705_basex
+
+quick_check:kc705_gmii:
+  <<: *jobTemplate_vivado_quick_check
+  variables:
+    VIVADO_VERSION: "2017.4"
+    PROJ: kc705_gmii
+
+quick_check:kcu105_basex:
+  <<: *jobTemplate_vivado_quick_check
+  variables:
+    VIVADO_VERSION: "2017.4"
+    PROJ: kcu105_basex
+
+
+
+build:enclustra_ax3_pm3_a35:2016.4:
+  <<: *jobTemplate_vivado_build
+  variables:
+    VIVADO_VERSION: "2016.4"
+    PROJ: enclustra_ax3_pm3_a35
+build:enclustra_ax3_pm3_a35:2017.4:
+  <<: *jobTemplate_vivado_build
+  variables:
+    VIVADO_VERSION: "2017.4"
+    PROJ: enclustra_ax3_pm3_a35
+
+build:enclustra_ax3_pm3_a50:2016.4:
+  <<: *jobTemplate_vivado_build
+  variables:
+    VIVADO_VERSION: "2016.4"
+    PROJ: enclustra_ax3_pm3_a50
+build:enclustra_ax3_pm3_a50:2017.4:
+  <<: *jobTemplate_vivado_build
+  variables:
+    VIVADO_VERSION: "2017.4"
+    PROJ: enclustra_ax3_pm3_a50
+
+build:kc705_basex:2016.4:
+  <<: *jobTemplate_vivado_build
+  variables:
+    VIVADO_VERSION: "2016.4"
+    PROJ: kc705_basex
+build:kc705_basex:2017.4:
+  <<: *jobTemplate_vivado_build
+  variables:
+    VIVADO_VERSION: "2017.4"
+    PROJ: kc705_basex
+
+build:kc705_gmii:2016.4:
+  <<: *jobTemplate_vivado_build
+  variables:
+    VIVADO_VERSION: "2016.4"
+    PROJ: kc705_gmii
+build:kc705_gmii:2017.4:
+  <<: *jobTemplate_vivado_build
+  variables:
+    VIVADO_VERSION: "2017.4"
+    PROJ: kc705_gmii
+
+build:kcu105_basex:2016.4:
+  <<: *jobTemplate_vivado_build
+  variables:
+    VIVADO_VERSION: "2016.4"
+    PROJ: kcu105_basex
+build:kcu105_basex:2017.4:
+  <<: *jobTemplate_vivado_build
+  variables:
+    VIVADO_VERSION: "2017.4"
+    PROJ: kcu105_basex
+
+
+run_sim:vivado2016.4:modelsim10.5:
+  <<: *jobTemplate_base
+  tags:
+    - docker
+    - docker-cap-net-admin
+    - xilinx-tools
+  stage: longer_jobs
+  only:
+    - /^pull-requests.[0-9]+$/
+  variables:
+    VIVADO_VERSION: "2016.4"
+    IPBB_SIMLIB_BASE: /scratch/xilinx-simlibs/modelsim_10.5
+  script:
+    - sudo openvpn --mktun --dev tap0
+    - sudo /sbin/ifconfig tap0 up 192.168.201.1
+    - sudo chmod a+rw /dev/net/tun
+
+    - export PATH=/software/mentor/modelsim_10.5/modeltech/bin:$PATH
+    - /tmp/fwArea/src/ipbus-firmware/tests/ci/test-run-sim.sh sim
