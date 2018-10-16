@@ -3,7 +3,7 @@ stages:
   - initial_report
   - quick_checks
   - midway_report
-  - longer_jobs
+  - builds
   - final_report
 
 
@@ -59,11 +59,6 @@ github_commit_status:end:success:
 .job_template: &jobTemplate_base
   image: ${IPBUS_DOCKER_REGISTRY}/ipbus-fw-dev-cc7:master__ipbb0.3.5
   before_script:
-    - source /software/ipbb-0.3.5/env.sh
-    - cd /tmp
-    - ipbb init fwArea
-    - cd fwArea
-    - cp -r ${CI_PROJECT_DIR} src/ipbus-firmware
     - source /software/Xilinx/Vivado/${VIVADO_VERSION}/settings64.sh
 
 .job_template: &jobTemplate_vivado_quick_check
@@ -73,46 +68,93 @@ github_commit_status:end:success:
     - xilinx-tools
   stage: quick_checks
   script:
-    - /tmp/fwArea/src/ipbus-firmware/tests/ci/test-vivado-syntax.sh ${PROJ}
+    - ipbb init work_area
+    - cd work_area
+    - ln -s ${CI_PROJECT_DIR} src/ipbus-firmware
+    - ipbb proj create vivado -t top_${PROJ}.dep ${CI_JOB_NAME#quick_check:} ipbus-firmware:projects/example
+    - cd proj/${CI_JOB_NAME#quick_check:}
+    - ipbb vivado make-project
+    - ipbb vivado check-syntax
+  artifacts:
+    when: on_success
+    paths:
+      - work_area
+    expire_in: 1 day
+
+
 
 .job_template: &jobTemplate_vivado_build
   <<: *jobTemplate_base
   tags:
     - docker
     - xilinx-tools
-  stage: longer_jobs
+  stage: builds
   only:
     - /^pull-requests.[0-9]+$/
   script:
-    - /tmp/fwArea/src/ipbus-firmware/tests/ci/test_build.sh ${PROJ}
+    - cd work_area/proj/${CI_JOB_NAME#build:}
+    - ipbb vivado synth -j3
+    - ipbb vivado impl
+    - ipbb vivado bitfile
+    - ipbb vivado package
+  artifacts:
+    when: on_success
+    paths:
+      - work_area/proj/*/package/*.tgz
+    expire_in: 2 weeks
 
 
 
-quick_check:enclustra_ax3_pm3_a35:
+quick_check:enclustra_ax3_pm3_a35__2016.4:
+  <<: *jobTemplate_vivado_quick_check
+  variables:
+    VIVADO_VERSION: "2016.4"
+    PROJ: enclustra_ax3_pm3_a35
+quick_check:enclustra_ax3_pm3_a35__2017.4:
   <<: *jobTemplate_vivado_quick_check
   variables:
     VIVADO_VERSION: "2017.4"
     PROJ: enclustra_ax3_pm3_a35
 
-quick_check:enclustra_ax3_pm3_a50:
+quick_check:enclustra_ax3_pm3_a50__2016.4:
+  <<: *jobTemplate_vivado_quick_check
+  variables:
+    VIVADO_VERSION: "2016.4"
+    PROJ: enclustra_ax3_pm3_a50
+quick_check:enclustra_ax3_pm3_a50__2017.4:
   <<: *jobTemplate_vivado_quick_check
   variables:
     VIVADO_VERSION: "2017.4"
     PROJ: enclustra_ax3_pm3_a50
 
-quick_check:kc705_basex:
+quick_check:kc705_basex__2016.4:
+  <<: *jobTemplate_vivado_quick_check
+  variables:
+    VIVADO_VERSION: "2016.4"
+    PROJ: kc705_basex
+quick_check:kc705_basex__2017.4:
   <<: *jobTemplate_vivado_quick_check
   variables:
     VIVADO_VERSION: "2017.4"
     PROJ: kc705_basex
 
-quick_check:kc705_gmii:
+quick_check:kc705_gmii__2016.4:
+  <<: *jobTemplate_vivado_quick_check
+  variables:
+    VIVADO_VERSION: "2016.4"
+    PROJ: kc705_gmii
+quick_check:kc705_gmii__2017.4:
   <<: *jobTemplate_vivado_quick_check
   variables:
     VIVADO_VERSION: "2017.4"
     PROJ: kc705_gmii
 
-quick_check:kcu105_basex:
+quick_check:kcu105_basex__2016.4:
+  <<: *jobTemplate_vivado_quick_check
+  variables:
+    VIVADO_VERSION: "2016.4"
+    PROJ: kcu105_basex
+quick_check:kcu105_basex__2017.4:
   <<: *jobTemplate_vivado_quick_check
   variables:
     VIVADO_VERSION: "2017.4"
@@ -120,60 +162,70 @@ quick_check:kcu105_basex:
 
 
 
-build:enclustra_ax3_pm3_a35:2016.4:
+build:enclustra_ax3_pm3_a35__2016.4:
   <<: *jobTemplate_vivado_build
   variables:
     VIVADO_VERSION: "2016.4"
-    PROJ: enclustra_ax3_pm3_a35
-build:enclustra_ax3_pm3_a35:2017.4:
+  dependencies:
+    - quick_check:enclustra_ax3_pm3_a35__2016.4
+build:enclustra_ax3_pm3_a35__2017.4:
   <<: *jobTemplate_vivado_build
   variables:
     VIVADO_VERSION: "2017.4"
-    PROJ: enclustra_ax3_pm3_a35
+  dependencies:
+    - quick_check:enclustra_ax3_pm3_a35__2017.4
 
-build:enclustra_ax3_pm3_a50:2016.4:
+build:enclustra_ax3_pm3_a50__2016.4:
   <<: *jobTemplate_vivado_build
   variables:
     VIVADO_VERSION: "2016.4"
-    PROJ: enclustra_ax3_pm3_a50
-build:enclustra_ax3_pm3_a50:2017.4:
+  dependencies:
+    - quick_check:enclustra_ax3_pm3_a50__2016.4
+build:enclustra_ax3_pm3_a50__2017.4:
   <<: *jobTemplate_vivado_build
   variables:
     VIVADO_VERSION: "2017.4"
-    PROJ: enclustra_ax3_pm3_a50
+  dependencies:
+    - quick_check:enclustra_ax3_pm3_a50__2017.4
 
-build:kc705_basex:2016.4:
+build:kc705_basex__2016.4:
   <<: *jobTemplate_vivado_build
   variables:
     VIVADO_VERSION: "2016.4"
-    PROJ: kc705_basex
-build:kc705_basex:2017.4:
+  dependencies:
+    - quick_check:kc705_basex__2016.4
+build:kc705_basex__2017.4:
   <<: *jobTemplate_vivado_build
   variables:
     VIVADO_VERSION: "2017.4"
-    PROJ: kc705_basex
+  dependencies:
+    - quick_check:kc705_basex__2017.4
 
-build:kc705_gmii:2016.4:
+build:kc705_gmii__2016.4:
   <<: *jobTemplate_vivado_build
   variables:
     VIVADO_VERSION: "2016.4"
-    PROJ: kc705_gmii
-build:kc705_gmii:2017.4:
+  dependencies:
+    - quick_check:kc705_gmii__2016.4
+build:kc705_gmii__2017.4:
   <<: *jobTemplate_vivado_build
   variables:
     VIVADO_VERSION: "2017.4"
-    PROJ: kc705_gmii
+  dependencies:
+    - quick_check:kc705_gmii__2017.4
 
-build:kcu105_basex:2016.4:
+build:kcu105_basex__2016.4:
   <<: *jobTemplate_vivado_build
   variables:
     VIVADO_VERSION: "2016.4"
-    PROJ: kcu105_basex
-build:kcu105_basex:2017.4:
+  dependencies:
+    - quick_check:kcu105_basex__2016.4
+build:kcu105_basex__2017.4:
   <<: *jobTemplate_vivado_build
   variables:
     VIVADO_VERSION: "2017.4"
-    PROJ: kcu105_basex
+  dependencies:
+    - quick_check:kcu105_basex__2017.4
 
 
 run_sim:vivado2016.4:modelsim10.5:
@@ -182,7 +234,7 @@ run_sim:vivado2016.4:modelsim10.5:
     - docker
     - docker-cap-net-admin
     - xilinx-tools
-  stage: longer_jobs
+  stage: quick_checks
   only:
     - /^pull-requests.[0-9]+$/
   variables:
@@ -192,6 +244,9 @@ run_sim:vivado2016.4:modelsim10.5:
     - sudo openvpn --mktun --dev tap0
     - sudo /sbin/ifconfig tap0 up 192.168.201.1
     - sudo chmod a+rw /dev/net/tun
-
     - export PATH=/software/mentor/modelsim_10.5/modeltech/bin:$PATH
-    - /tmp/fwArea/src/ipbus-firmware/tests/ci/test-run-sim.sh sim
+
+    - ipbb init work_area
+    - cd work_area
+    - ln -s ${CI_PROJECT_DIR} src/ipbus-firmware
+    - /${CI_PROJECT_DIR}/work_area/src/ipbus-firmware/tests/ci/test-run-sim.sh sim
