@@ -58,9 +58,6 @@ github_commit_status:end:success:
 
 .job_template: &jobTemplate_base
   image: ${IPBUS_DOCKER_REGISTRY}/ipbus-fw-dev-cc7:master__ipbb0.3.5
-  tags:
-    - docker
-    - xilinx-tools
   before_script:
     - source /software/ipbb-0.3.5/env.sh
     - cd /tmp
@@ -71,12 +68,18 @@ github_commit_status:end:success:
 
 .job_template: &jobTemplate_vivado_quick_check
   <<: *jobTemplate_base
+  tags:
+    - docker
+    - xilinx-tools
   stage: quick_checks
   script:
     - /tmp/fwArea/src/ipbus-firmware/tests/ci/test-vivado-syntax.sh ${PROJ}
 
 .job_template: &jobTemplate_vivado_build
   <<: *jobTemplate_base
+  tags:
+    - docker
+    - xilinx-tools
   stage: longer_jobs
   only:
     - /^pull-requests.[0-9]+$/
@@ -175,6 +178,10 @@ build:kcu105_basex:2017.4:
 
 run_sim:vivado2016.4:modelsim10.5:
   <<: *jobTemplate_base
+  tags:
+    - docker
+    - docker-cap-net-admin
+    - xilinx-tools
   stage: longer_jobs
   only:
     - /^pull-requests.[0-9]+$/
